@@ -1,1 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>純 GitHub 免費 AI 系統</title>
+    <!-- 引入 Tailwind CSS 網頁美化 -->
+    <script src="https://jsdelivr.net"></script>
+    <!-- 引入 WebLLM 核心套件 (瀏覽器跑 AI 核心) -->
+    <script type="module">
+        import * as webllm from "https://esm.run";
+        window.webllm = webllm; // 將套件綁定到全域以便後續使用
+    </script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col justify-between font-sans">
+
+    <!-- 頂部標題與狀態 -->
+    <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">純 GitHub 前端 AI 機器人</h1>
+        <span id="status" class="bg-blue-800 px-3 py-1 rounded-full text-sm">正在初始化環境...</span>
+    </div>
+
+    <!-- 聊天對話區域 -->
+    <div id="chat-box" class="flex-1 p-4 overflow-y-auto space-y-4 max-w-3xl w-full mx-auto">
+        <div class="flex items-start">
+            <div class="bg-white p-3 rounded-lg shadow-sm max-w-[80%] text-gray-800">
+                哈囉！這是一個完全執行在你瀏覽器裡的 AI 系統，由 GitHub Pages 託管。第一次使用需要下載 AI 模型，請稍等狀態欄提示。
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部輸入區域 -->
+    <div class="bg-white border-t border-gray-200 p-4 shadow-lg">
+        <div class="max-w-3xl mx-auto flex gap-2">
+            <input type="text" id="user-input" disabled
+                   class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" 
+                   placeholder="請先等待 AI 模型載入完畢...">
+            <button id="send-btn" disabled onclick="sendMessage()"
+                    class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400">
+                傳送
+            </button>
+        </div>
+    </div>
+
+    <!-- 核心運算控制 JavaScript -->
+    <script type="module">
+        let engine;
+        // 選擇超輕量的 AI 模型，適合在瀏覽器跟手機跑
+        const selectedModel = "Llama-3-8B-Instruct-q4f16_1-MLC"; 
+
+        async function initAI() {
+            const statusLabel = document.getElementById("status");
+            const userInput = document.getElementById("user-input");
+            const sendBtn = document.getElementById("send-btn");
+
+            try {
+                // 建立 AI 引擎並設定下載進度回報
+                engine = await window.webllm.CreateEngineLoopback();
+                engine.setInitProgressCallback((report) => {
+                    statusLabel.innerText = report.text; // 畫面上會顯示「下載中 XX%」
+                });
+
+                // 開始載入模型
+                await engine.reload(selectedModel);
+                statusLabel.innerText = "AI 線上就緒！";
+                statusLabel.className = "bg-green-600 px-3 py-1 rounded-full text-sm";
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.placeholder = "請輸入訊息...";
+            } catch (error) {
+                statusLabel.innerText = "初始化失敗，您的瀏覽器可能不支援 WebGPU";
+                statusLabel.className = "bg-red-600 px-3 py-1 rounded-full text-sm";
+                console.error(error);
+            }
+        }
+
+        // 處理傳送訊息與 AI 自動回覆
+        window.sendMessage = async function() {
+            const userInput = document.getElementById("user-input");
+            const chatBox = document.getElementById("chat-box");
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // 1. 顯示使用者的訊息
+            appendMessage(text, 'user');
+            userInput.value = "";
+
+            // 2. 建立 AI 的對話泡泡（先顯示讀取中）
+            const aiBubble = appendMessage("AI 正在思考中...", 'ai');
+
+            // 3. 呼叫模型生成自動回覆
+            const messages = [{ role: "user", content: text }];
+            const reply = await engine.chat.completions.create({ messages });
+            
+            // 4. 把生成好的內容替換進去
+            aiBubble.innerText = reply.choices[0].message.content;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function appendMessage(text, sender) {
+            const chatBox = document.getElementById("chat-box");
+            const wrapper = document.createElement("div");
+            wrapper.className = sender === 'user' ? "flex items-start justify-end" : "flex items-start";
+            
+            const bubble = document.createElement("div");
+            bubble.className = sender === 'user' 
+                ? "bg-blue-600 text-white p-3 rounded-lg shadow-sm max-w-[80%]" 
+                : "bg-white text-gray-800 p-3 rounded-lg shadow-sm max-w-[80%]";
+            bubble.innerText = text;
+
+            wrapper.appendChild(bubble);
+            chatBox.appendChild(wrapper);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return bubble;
+        }
+
+        // 網頁開啟後自動初始化 AI
+        window.addEventListener("DOMContentLoaded", initAI);
+    </script>
+</body>
+</html>
 
